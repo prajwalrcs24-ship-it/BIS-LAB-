@@ -1,0 +1,205 @@
+import random
+import math
+
+random.seed(10)
+
+print("=" * 60)
+print("BRAIN TUMOR SEGMENTATION USING GWO")
+print("MULTILEVEL THRESHOLDING")
+print("=" * 60)
+
+# STEP 1: CREATE A SYNTHETIC MRI-LIKE IMAGE
+
+print("\nSTEP 1: Creating MRI-like image")
+
+image = []
+
+for i in range(20):
+    row = []
+
+    for j in range(20):
+        distance = math.sqrt((i - 10) ** 2 + (j - 10) ** 2)
+
+        if distance < 8:
+            pixel = random.randint(80, 110)
+        else:
+            pixel = random.randint(0, 20)
+
+        # Simulated bright tumor region
+        if (i - 7) ** 2 + (j - 13) ** 2 < 9:
+            pixel = random.randint(190, 230)
+
+        row.append(pixel)
+
+    image.append(row)
+
+pixels = [pixel for row in image for pixel in row]
+
+print("Image created successfully.")
+print("Image size:", len(image), "x", len(image[0]))
+print("Total pixels:", len(pixels))
+
+# STEP 2: FITNESS FUNCTION
+
+def fitness(thresholds):
+    t1, t2 = sorted(thresholds)
+
+    region1 = [p for p in pixels if p <= t1]
+    region2 = [p for p in pixels if t1 < p <= t2]
+    region3 = [p for p in pixels if p > t2]
+
+    total_variance = 0
+
+    for region in [region1, region2, region3]:
+        if len(region) > 0:
+            mean = sum(region) / len(region)
+
+            variance = sum(
+                (p - mean) ** 2 for p in region
+            ) / len(region)
+
+            total_variance += len(region) * variance
+
+    return total_variance / len(pixels)
+
+
+# STEP 3: INITIALIZE POPULATION
+
+population_size = 5
+iterations = 5
+
+population = []
+
+print("\nSTEP 2: Initializing threshold candidates")
+
+for i in range(population_size):
+    t1 = random.randint(0, 120)
+    t2 = random.randint(121, 255)
+
+    population.append([t1, t2])
+
+    print(
+        "Candidate", i + 1,
+        "Thresholds:", population[i],
+        "Fitness:", round(fitness(population[i]), 2)
+    )
+
+# STEP 4: GWO OPTIMIZATION
+
+for iteration in range(iterations):
+
+    print("\n" + "=" * 60)
+    print("ITERATION", iteration + 1)
+    print("=" * 60)
+
+    population.sort(key=fitness)
+
+    alpha = population[0][:]
+    beta = population[1][:]
+    delta = population[2][:]
+
+    print("\nBest three candidates:")
+    print("Alpha:", alpha, "Fitness:", round(fitness(alpha), 2))
+    print("Beta :", beta, "Fitness:", round(fitness(beta), 2))
+    print("Delta:", delta, "Fitness:", round(fitness(delta), 2))
+
+    a = 2 - (2 * iteration / iterations)
+
+    print("\nUpdating all threshold candidates...")
+    print("Control parameter a =", round(a, 2))
+
+    for i in range(population_size):
+
+        current = population[i][:]
+
+        new_thresholds = []
+
+        for d in range(2):
+
+            r1 = random.random()
+            r2 = random.random()
+
+            A1 = 2 * a * r1 - a
+            C1 = 2 * r2
+
+            D_alpha = abs(C1 * alpha[d] - current[d])
+            X1 = alpha[d] - A1 * D_alpha
+
+            r1 = random.random()
+            r2 = random.random()
+
+            A2 = 2 * a * r1 - a
+            C2 = 2 * r2
+
+            D_beta = abs(C2 * beta[d] - current[d])
+            X2 = beta[d] - A2 * D_beta
+
+            r1 = random.random()
+            r2 = random.random()
+
+            A3 = 2 * a * r1 - a
+            C3 = 2 * r2
+
+            D_delta = abs(C3 * delta[d] - current[d])
+            X3 = delta[d] - A3 * D_delta
+
+            new_value = (X1 + X2 + X3) / 3
+
+            new_value = max(0, min(255, new_value))
+
+            new_thresholds.append(int(new_value))
+
+        new_thresholds.sort()
+        population[i] = new_thresholds
+
+        print(
+            "Candidate", i + 1,
+            "Updated:", new_thresholds,
+            "Fitness:", round(fitness(new_thresholds), 2)
+        )
+
+# STEP 5: FINAL RESULT
+
+population.sort(key=fitness)
+
+best_thresholds = population[0]
+
+t1, t2 = best_thresholds
+
+print("\n" + "=" * 60)
+print("FINAL OPTIMIZED RESULT")
+print("=" * 60)
+
+print("Optimal Threshold 1:", t1)
+print("Optimal Threshold 2:", t2)
+print("Best Fitness:", round(fitness(best_thresholds), 2))
+
+# STEP 6: MULTILEVEL SEGMENTATION
+
+background = 0
+brain_tissue = 0
+tumor_region = 0
+
+for pixel in pixels:
+
+    if pixel <= t1:
+        background += 1
+
+    elif pixel <= t2:
+        brain_tissue += 1
+
+    else:
+        tumor_region += 1
+
+print("\nSTEP 6: MULTILEVEL IMAGE SEGMENTATION")
+
+print("Region 1: Pixel intensity <=", t1)
+print("Region 2: Pixel intensity >", t1, "and <=", t2)
+print("Region 3: Pixel intensity >", t2)
+
+print("\nNumber of pixels in each region:")
+print("Background pixels:", background)
+print("Brain tissue pixels:", brain_tissue)
+print("Bright tumor-like pixels:", tumor_region)
+
+print("\nSegmentation process completed successfully.")

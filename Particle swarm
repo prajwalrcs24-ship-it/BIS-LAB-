@@ -1,0 +1,243 @@
+
+import random
+import math
+
+random.seed(42)
+
+# ==========================================
+# PSO FOR STOCK PORTFOLIO OPTIMIZATION
+# ==========================================
+
+stocks = ["Reliance", "TCS", "Infosys", "HDFC Bank"]
+returns = [0.14, 0.12, 0.16, 0.11]
+
+covariance = [
+    [0.040, 0.012, 0.015, 0.010],
+    [0.012, 0.030, 0.018, 0.009],
+    [0.015, 0.018, 0.050, 0.011],
+    [0.010, 0.009, 0.011, 0.025]
+]
+
+RF = 0.06
+N = len(stocks)
+
+# Fixed PSO parameters (no user input)
+P = 4
+T = 3
+W = 0.7
+C1 = 1.5
+C2 = 1.5
+
+# ==========================================
+# STEP 1: PORTFOLIO WEIGHTS
+# ==========================================
+
+def get_weights(position):
+    values = [math.exp(x) for x in position]
+    total = sum(values)
+    return [x / total for x in values]
+
+# ==========================================
+# STEP 2: PORTFOLIO RETURN
+# ==========================================
+
+def portfolio_return(weights):
+    return sum(weights[i] * returns[i] for i in range(N))
+
+# ==========================================
+# STEP 3: PORTFOLIO RISK
+# ==========================================
+
+def portfolio_risk(weights):
+    variance = 0
+
+    for i in range(N):
+        for j in range(N):
+            variance += weights[i] * weights[j] * covariance[i][j]
+
+    return math.sqrt(variance)
+
+# ==========================================
+# STEP 4: FITNESS FUNCTION
+# ==========================================
+
+def fitness(position):
+    weights = get_weights(position)
+    risk = portfolio_risk(weights)
+    ret = portfolio_return(weights)
+
+    return (ret - RF) / risk
+
+# ==========================================
+# STEP 5: INITIALIZE PARTICLES
+# ==========================================
+
+particles = []
+velocities = []
+pbest = []
+pbest_fit = []
+
+print("========== PSO PARAMETERS ==========")
+print("Number of particles:", P)
+print("Number of iterations:", T)
+print("Inertia weight:", W)
+print("Cognitive coefficient:", C1)
+print("Social coefficient:", C2)
+
+print("\n========== INITIAL POPULATION ==========")
+
+for i in range(P):
+
+    position = [random.uniform(-1, 1) for _ in range(N)]
+    velocity = [random.uniform(-0.1, 0.1) for _ in range(N)]
+
+    particles.append(position)
+    velocities.append(velocity)
+
+    pbest.append(position[:])
+    pbest_fit.append(fitness(position))
+
+    weights = get_weights(position)
+
+    print("\nParticle", i + 1)
+    print("Initial position:", [round(x, 4) for x in position])
+    print("Initial velocity:", [round(x, 4) for x in velocity])
+    print("Portfolio weights:", [round(x * 100, 2) for x in weights])
+    print("Expected return:", round(portfolio_return(weights), 4))
+    print("Portfolio risk:", round(portfolio_risk(weights), 4))
+    print("Fitness (Sharpe Ratio):", round(fitness(position), 4))
+
+# ==========================================
+# STEP 6: INITIAL GLOBAL BEST
+# ==========================================
+
+best_index = pbest_fit.index(max(pbest_fit))
+
+gbest = pbest[best_index][:]
+gbest_fit = pbest_fit[best_index]
+
+print("\n========== INITIAL GLOBAL BEST ==========")
+print("Best particle:", best_index + 1)
+print("Global best position:", [round(x, 4) for x in gbest])
+print("Global best fitness:", round(gbest_fit, 4))
+
+# ==========================================
+# STEP 7: PSO ITERATIONS
+# ==========================================
+
+for iteration in range(1, T + 1):
+
+    print("\n\n========== ITERATION", iteration, "==========")
+
+    for i in range(P):
+
+        print("\n----- Particle", i + 1, "-----")
+
+        print("Current position:",
+              [round(x, 4) for x in particles[i]])
+
+        print("Personal best:",
+              [round(x, 4) for x in pbest[i]])
+
+        print("Global best:",
+              [round(x, 4) for x in gbest])
+
+        # Velocity update
+        for j in range(N):
+
+            r1 = random.random()
+            r2 = random.random()
+
+            cognitive = C1 * r1 * (pbest[i][j] - particles[i][j])
+            social = C2 * r2 * (gbest[j] - particles[i][j])
+
+            velocities[i][j] = (
+                W * velocities[i][j] + cognitive + social
+            )
+
+            print(
+                "Stock:", stocks[j],
+                "| r1:", round(r1, 4),
+                "| r2:", round(r2, 4),
+                "| Cognitive:", round(cognitive, 4),
+                "| Social:", round(social, 4),
+                "| New velocity:", round(velocities[i][j], 4)
+            )
+
+        # Position update
+        for j in range(N):
+            particles[i][j] += velocities[i][j]
+
+        print("Updated position:",
+              [round(x, 4) for x in particles[i]])
+
+        weights = get_weights(particles[i])
+        current_fit = fitness(particles[i])
+
+        print("Portfolio allocation:",
+              [round(x * 100, 2) for x in weights])
+
+        print("Portfolio return:",
+              round(portfolio_return(weights), 4))
+
+        print("Portfolio risk:",
+              round(portfolio_risk(weights), 4))
+
+        print("Current fitness:",
+              round(current_fit, 4))
+
+        # Update Personal Best
+        if current_fit > pbest_fit[i]:
+
+            pbest[i] = particles[i][:]
+            pbest_fit[i] = current_fit
+
+            print("PBest updated:",
+                  [round(x, 4) for x in pbest[i]])
+
+        else:
+            print("PBest unchanged")
+
+        # Update Global Best
+        if current_fit > gbest_fit:
+
+            gbest = particles[i][:]
+            gbest_fit = current_fit
+
+            print("GBest updated:",
+                  [round(x, 4) for x in gbest])
+
+        else:
+            print("GBest unchanged")
+
+    print("\n========== ITERATION SUMMARY ==========")
+    print("Iteration:", iteration)
+    print("Best position:", [round(x, 4) for x in gbest])
+    print("Best fitness:", round(gbest_fit, 4))
+
+# ==========================================
+# STEP 8: FINAL OPTIMAL PORTFOLIO
+# ==========================================
+
+best_weights = get_weights(gbest)
+
+print("\n\n========== FINAL OPTIMAL PORTFOLIO ==========")
+
+for i in range(N):
+    print(stocks[i], ":", round(best_weights[i] * 100, 2), "%")
+
+print("\nExpected annual return:",
+      round(portfolio_return(best_weights) * 100, 2), "%")
+
+print("Annual portfolio risk:",
+      round(portfolio_risk(best_weights) * 100, 2), "%")
+
+print("Risk-free rate:", RF * 100, "%")
+
+print("Maximum Sharpe Ratio:",
+      round(gbest_fit, 4))
+
+print("Total allocation:",
+      round(sum(best_weights) * 100, 2), "%")
+
+print("\n========== PSO COMPLETED ==========")

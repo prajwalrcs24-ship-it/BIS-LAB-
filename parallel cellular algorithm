@@ -1,0 +1,442 @@
+
+import random
+from concurrent.futures import ThreadPoolExecutor
+
+# =====================================================
+# PARALLEL CELLULAR GENETIC ALGORITHM
+# APPLICATION: TASK SCHEDULING IN GRID COMPUTING
+# =====================================================
+
+random.seed(42)
+
+print("=" * 75)
+print(" PARALLEL CELLULAR GENETIC ALGORITHM")
+print(" TASK SCHEDULING IN GRID COMPUTING")
+print("=" * 75)
+
+# STEP 1: INITIALIZE PARAMETERS
+
+tasks = 4
+machines = 3
+
+rows = 2
+cols = 2
+
+max_generations = 5
+crossover_rate = 0.8
+mutation_rate = 0.1
+alpha = 0.5
+num_threads = 4
+
+# Processing time of each task on each machine
+
+processing = [
+    [5, 8, 3],
+    [7, 4, 6],
+    [3, 6, 5],
+    [8, 5, 4]
+]
+
+print("\nSTEP 1: INITIALIZATION")
+print("-" * 75)
+
+print("Number of tasks       :", tasks)
+print("Number of machines    :", machines)
+print("Grid size             :", rows, "x", cols)
+print("Maximum generations   :", max_generations)
+print("Crossover rate        :", crossover_rate)
+print("Mutation rate         :", mutation_rate)
+print("Learning factor       :", alpha)
+print("Parallel threads      :", num_threads)
+
+print("\nPROCESSING TIME MATRIX")
+
+for i in range(tasks):
+    print("Task", i+1, ":", processing[i])
+
+
+# STEP 2: FITNESS FUNCTION
+
+def fitness(solution, show=False):
+
+    workload = [0] * machines
+
+    for task in range(tasks):
+
+        machine = solution[task]
+
+        workload[machine] += processing[task][machine]
+
+    makespan = max(workload)
+
+    if show:
+        print("Computer workloads:", workload)
+        print("Makespan =", max(workload))
+
+    return makespan
+
+
+# STEP 3: INITIALIZE POPULATION
+
+print("\nSTEP 2: POPULATION INITIALIZATION")
+print("-" * 75)
+
+grid = []
+
+for i in range(rows):
+
+    grid_row = []
+
+    for j in range(cols):
+
+        individual = [
+            random.randrange(machines)
+            for _ in range(tasks)
+        ]
+
+        grid_row.append(individual)
+
+        print(f"Cell ({i},{j}) = {individual}")
+
+    grid.append(grid_row)
+
+
+# STEP 4: INITIAL FITNESS EVALUATION
+
+print("\nSTEP 3: INITIAL FITNESS EVALUATION")
+print("-" * 75)
+
+scores = []
+
+for i in range(rows):
+
+    score_row = []
+
+    for j in range(cols):
+
+        print(f"\nEvaluating Cell ({i},{j})")
+
+        score = fitness(grid[i][j], show=True)
+
+        score_row.append(score)
+
+        print("Fitness =", score)
+
+    scores.append(score_row)
+
+
+# FIND INITIAL GLOBAL BEST
+
+best_fitness = float("inf")
+best_solution = None
+
+for i in range(rows):
+
+    for j in range(cols):
+
+        if scores[i][j] < best_fitness:
+
+            best_fitness = scores[i][j]
+            best_solution = grid[i][j][:]
+
+print("\nInitial best solution:", best_solution)
+print("Initial best fitness:", best_fitness)
+
+
+# STEP 5: FIND NEIGHBOURS
+
+def get_neighbours(i, j):
+
+    return [
+        ((i-1) % rows, j),
+        ((i+1) % rows, j),
+        (i, (j-1) % cols),
+        (i, (j+1) % cols)
+    ]
+
+
+# STEP 6: CROSSOVER
+
+def crossover(parent, mate):
+
+    child = []
+
+    print("\nCROSSOVER PROCESS")
+
+    for d in range(tasks):
+
+        r = random.random()
+
+        if r < crossover_rate:
+
+            child.append(mate[d])
+
+            print(
+                f"Task {d+1}: Select mate gene "
+                f"{mate[d]} (random={r:.3f})"
+            )
+
+        else:
+
+            child.append(parent[d])
+
+            print(
+                f"Task {d+1}: Select parent gene "
+                f"{parent[d]} (random={r:.3f})"
+            )
+
+    print("Child after crossover:", child)
+
+    return child
+
+
+# STEP 7: MUTATION
+
+def mutation(child):
+
+    child = child[:]
+
+    print("\nMUTATION PROCESS")
+
+    for d in range(tasks):
+
+        r = random.random()
+
+        if r < mutation_rate and machines > 1:
+
+            old = child[d]
+
+            choices = [
+                m for m in range(machines)
+                if m != old
+            ]
+
+            child[d] = random.choice(choices)
+
+            print(
+                f"Task {d+1}: Machine changed "
+                f"from {old+1} to {child[d]+1}"
+            )
+
+        else:
+
+            print(f"Task {d+1}: No mutation")
+
+    print("Child after mutation:", child)
+
+    return child
+
+
+# STEP 8: GENERATION PROCESS
+
+for generation in range(1, max_generations + 1):
+
+    print("\n" + "=" * 75)
+    print("GENERATION", generation)
+    print("=" * 75)
+
+    # Keep previous generation unchanged
+
+    old_grid = [
+        [grid[i][j][:] for j in range(cols)]
+        for i in range(rows)
+    ]
+
+    old_scores = [row[:] for row in scores]
+
+    new_grid = [
+        [None for j in range(cols)]
+        for i in range(rows)
+    ]
+
+    children = []
+
+    # PROCESS EACH CELL
+
+    for i in range(rows):
+
+        for j in range(cols):
+
+            print("\n" + "-" * 65)
+            print(f"PROCESSING CELL ({i},{j})")
+            print("-" * 65)
+
+            current = old_grid[i][j]
+
+            print("Current individual:", current)
+            print("Current fitness:", old_scores[i][j])
+
+            # Find neighbours
+
+            neighbours = get_neighbours(i, j)
+
+            print("\nNEIGHBOUR SELECTION")
+
+            for nr, nc in neighbours:
+
+                print(
+                    f"Neighbour ({nr},{nc}) = "
+                    f"{old_grid[nr][nc]}, "
+                    f"Fitness = {old_scores[nr][nc]}"
+                )
+
+            # Select best neighbour
+
+            best_position = min(
+                neighbours,
+                key=lambda p: old_scores[p[0]][p[1]]
+            )
+
+            mate = old_grid[
+                best_position[0]
+            ][
+                best_position[1]
+            ]
+
+            print("\nSelected best neighbour:", best_position)
+            print("Selected mate:", mate)
+
+            # Apply crossover
+
+            child = crossover(current, mate)
+
+            # Apply mutation
+
+            child = mutation(child)
+
+            children.append((i, j, child))
+
+    # STEP 9: PARALLEL FITNESS EVALUATION
+
+    print("\n" + "=" * 75)
+    print("PARALLEL FITNESS EVALUATION")
+    print("=" * 75)
+
+    print("Number of threads:", num_threads)
+
+    with ThreadPoolExecutor(
+        max_workers=num_threads
+    ) as executor:
+
+        results = list(
+            executor.map(
+                fitness,
+                [item[2] for item in children]
+            )
+        )
+
+    print("\nParallel evaluation completed.")
+
+    # STEP 10: SELECTION AND REPLACEMENT
+
+    print("\n" + "=" * 75)
+    print("SELECTION AND REPLACEMENT")
+    print("=" * 75)
+
+    for index, (i, j, child) in enumerate(children):
+
+        new_score = results[index]
+
+        old_score = old_scores[i][j]
+
+        print(f"\nCell ({i},{j})")
+
+        print("Old fitness:", old_score)
+        print("New child:", child)
+        print("New fitness:", new_score)
+
+        if new_score < old_score:
+
+            new_grid[i][j] = child
+
+            print("Decision: Child accepted.")
+
+        else:
+
+            new_grid[i][j] = old_grid[i][j][:]
+
+            print("Decision: Old individual retained.")
+
+    # Update complete population
+
+    grid = new_grid
+
+    # Recalculate fitness
+
+    scores = [
+        [
+            fitness(grid[i][j])
+            for j in range(cols)
+        ]
+        for i in range(rows)
+    ]
+
+    # STEP 11: UPDATE GLOBAL BEST
+
+    print("\nGLOBAL BEST UPDATE")
+
+    for i in range(rows):
+
+        for j in range(cols):
+
+            if scores[i][j] < best_fitness:
+
+                best_fitness = scores[i][j]
+
+                best_solution = grid[i][j][:]
+
+                print("New global best found!")
+                print("Best solution:", best_solution)
+                print("Best fitness:", best_fitness)
+
+    print("\nGRID AFTER GENERATION", generation)
+
+    for i in range(rows):
+
+        for j in range(cols):
+
+            print(
+                f"Cell ({i},{j}) = {grid[i][j]} "
+                f"| Fitness = {scores[i][j]}"
+            )
+
+    print("\nGeneration", generation, "completed.")
+
+
+# STEP 12: FINAL RESULT
+
+print("\n" + "=" * 75)
+print("                 FINAL RESULT")
+print("=" * 75)
+
+final_makespan = fitness(best_solution)
+
+print("\nBEST TASK SCHEDULE")
+
+for task, machine in enumerate(best_solution):
+
+    print(
+        f"Task {task+1} --> Computer {machine+1}"
+    )
+
+workload = [0] * machines
+
+for task, machine in enumerate(best_solution):
+
+    workload[machine] += processing[task][machine]
+
+print("\nFINAL COMPUTER WORKLOADS")
+
+for i in range(machines):
+
+    print(
+        f"Computer {i+1} = {workload[i]}"
+    )
+
+print("\nBest solution:", best_solution)
+
+print("Minimum makespan:", final_makespan)
+
+print("\nAll generations completed successfully.")
+
+print("=" * 75)
